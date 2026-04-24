@@ -123,6 +123,22 @@ def main():
 4.  **注意槓桿損耗：** 槓桿/反向型 ETF 存在每日調整損耗，不建議作為長期持有標的。
 
 ---
+
+## 4. 全部分類清單 (附收益率)
+以下為各分類下的完整 ETF 表列：
+
+"""
+    # List all categories and their ETFs
+    for cat in category_stats.index:
+        cat_data = data[data['Category'] == cat].sort_values(by='Symbol')
+        report_content += f"### **【{cat}】 ({len(cat_data)}檔)**\n"
+        # Optional: Format return as percentage for readability in the final table
+        cat_data_display = cat_data[['Symbol', 'Name', 'TotalReturn']].copy()
+        cat_data_display['TotalReturn'] = cat_data_display['TotalReturn'].map(lambda x: f"{x:.2%}" if pd.notnull(x) else "N/A")
+        report_content += cat_data_display.to_markdown(index=False)
+        report_content += "\n\n"
+
+    report_content += """---
 *備註：以上數據基於「ETF報價分類.xlsx」計算。*
 """
     with open('ETF分析報告.md', 'w', encoding='utf-8') as f:
