@@ -60,8 +60,8 @@ def calculate_indicators(df):
         }, index=df.index)
     return indicators
 
-def run_backtest(price_df, indicators_dict, initial_cash=30000000.0, num_slots=5, trailing_stop_pct=0.10):
-    print(f"Running backtest with {initial_cash} TWD and {num_slots} slots (Trailing Stop: {trailing_stop_pct:.1%})...")
+def run_backtest(price_df, indicators_dict, initial_cash=30000000.0, num_slots=5, trailing_stop_pct=0.10, breadth_threshold=0.30):
+    print(f"Running backtest with {initial_cash} TWD and {num_slots} slots (Trailing Stop: {trailing_stop_pct:.1%}, Breadth Threshold: {breadth_threshold:.1%})...")
     cash = initial_cash
     pos_size = initial_cash / num_slots
 
@@ -74,6 +74,18 @@ def run_backtest(price_df, indicators_dict, initial_cash=30000000.0, num_slots=5
     buy_fee_rate = 0.001425
     sell_fee_rate = 0.001425
     tax_rate = 0.003
+
+    # Pre-calculate market breadth: % of stocks above SMA200
+    print("Pre-calculating market breadth...")
+    # Create a consolidated SMA dataframe for efficiency using pd.concat to avoid fragmentation
+    sma_cols = {symbol: indicators_dict[symbol]['sma200'] for symbol in price_df.columns}
+    sma_df = pd.concat(sma_cols, axis=1)
+
+    # Vectorized breadth calculation
+    is_above = (price_df > sma_df)
+    valid_mask = sma_df.notna()
+    breadth_series = (is_above & valid_mask).sum(axis=1) / valid_mask.sum(axis=1)
+    breadth_series = breadth_series.fillna(0)
 
     for i, date in enumerate(dates):
         # 1. Update Portfolio Value (Mark-to-Market)
@@ -89,6 +101,8 @@ def run_backtest(price_df, indicators_dict, initial_cash=30000000.0, num_slots=5
 
         # 2. Check for Exits
         to_exit = []
+        current_breadth = breadth_series.loc[date]
+
         for symbol, pos in active_positions.items():
             price = price_df.loc[date, symbol]
             sma = indicators_dict[symbol].loc[date, 'sma200']
@@ -101,8 +115,11 @@ def run_backtest(price_df, indicators_dict, initial_cash=30000000.0, num_slots=5
             # Trailing stop condition
             trailing_stop_price = pos['max_price'] * (1 - trailing_stop_pct)
 
-            # Exit conditions: RSI < 70 or Price < SMA200 OR Trailing Stop
-            if rsi < 70 or price < sma or price < trailing_stop_price:
+            # Exit conditions:
+            # 1. Strategy Signal (RSI < 70 or Price < SMA200)
+            # 2. Trailing Stop
+            # 3. Market Breadth Collapse (Breadth < 30%)
+            if rsi < 70 or price < sma or price < trailing_stop_price or current_breadth < breadth_threshold:
                 to_exit.append(symbol)
 
         for symbol in to_exit:
@@ -115,7 +132,7 @@ def run_backtest(price_df, indicators_dict, initial_cash=30000000.0, num_slots=5
             # print(f"[{date.date()}] EXIT {symbol} at {exit_price:.2f}")
 
         # 3. Check for Entries
-        if len(active_positions) < num_slots:
+        if len(active_positions) < num_slots and current_breadth >= breadth_threshold:
             available_slots = num_slots - len(active_positions)
 
             # Potential entries
