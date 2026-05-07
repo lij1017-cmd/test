@@ -60,12 +60,12 @@ def calculate_indicators(df):
         }, index=df.index)
     return indicators
 
-def run_backtest(price_df, indicators_dict, initial_cash=30000000.0, num_slots=10):
-    print(f"Running backtest with {initial_cash} TWD and {num_slots} slots...")
+def run_backtest(price_df, indicators_dict, initial_cash=30000000.0, num_slots=5, trailing_stop_pct=0.10):
+    print(f"Running backtest with {initial_cash} TWD and {num_slots} slots (Trailing Stop: {trailing_stop_pct:.1%})...")
     cash = initial_cash
     pos_size = initial_cash / num_slots
 
-    # Active positions: symbol -> {units, entry_price, entry_date}
+    # Active positions: symbol -> {units, entry_price, entry_date, max_price}
     active_positions = {}
 
     portfolio_history = []
@@ -94,8 +94,15 @@ def run_backtest(price_df, indicators_dict, initial_cash=30000000.0, num_slots=1
             sma = indicators_dict[symbol].loc[date, 'sma200']
             rsi = indicators_dict[symbol].loc[date, 'rsi']
 
-            # Exit conditions: RSI < 70 or Price < SMA200
-            if rsi < 70 or price < sma:
+            # Update max price for trailing stop
+            if price > pos['max_price']:
+                pos['max_price'] = price
+
+            # Trailing stop condition
+            trailing_stop_price = pos['max_price'] * (1 - trailing_stop_pct)
+
+            # Exit conditions: RSI < 70 or Price < SMA200 OR Trailing Stop
+            if rsi < 70 or price < sma or price < trailing_stop_price:
                 to_exit.append(symbol)
 
         for symbol in to_exit:
@@ -147,7 +154,8 @@ def run_backtest(price_df, indicators_dict, initial_cash=30000000.0, num_slots=1
                     active_positions[symbol] = {
                         'units': units,
                         'entry_price': entry_price,
-                        'entry_date': date
+                        'entry_date': date,
+                        'max_price': entry_price
                     }
                     cash -= (units * entry_price * (1 + buy_fee_rate))
                     # print(f"[{date.date()}] ENTRY {symbol} at {entry_price:.2f}")
