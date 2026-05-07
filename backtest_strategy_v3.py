@@ -150,14 +150,14 @@ def run_backtest(max_pos=10, atr_mult=6.0, ema_span=200, mkt_filter=0.3):
 
 ### 2. 實作邏輯 (Implementation)
 * 策略核心邏輯為何?
-  - **集中選股**：每日對發出訊號的標的按 60日 ROC 排序，僅配置最強勢的 {max_pos} 檔。
-  - **趨勢雙重確認**：EMA 200 長線過濾 + 20日價格突破。
-  - **動態退場**：當市場寬度崩潰（<{mkt_filter*100}%）或觸發個人移動停損（{atr_mult}x ATR）或 MACD 反轉時出場。
+  - **多單進場**：當市場寬度 > 40% 且個股突破 20 日高點、站上 EMA 200 且 MACD 金叉時，按 60日 ROC 排名取前 {max_pos} 檔。
+  - **空單替代**：當市場寬度 < 20% 且個股跌破 20 日低點時，買入反向 ETF 替代（依序循環 00632R, 00664R, 00676R, 00686R）。
+  - **動態退場**：觸發移動停損（{atr_mult}x ATR）、MACD 反轉或市場寬度崩潰（<{mkt_filter*100}%）時平倉。
   - **固定投入**：始終維持單筆 3000 萬 NTD 的分配，不考慮複利增長。
 * 策略必要參數為何?
   - EMA Span: {ema_span}, ATR Multiplier: {atr_mult}, Max Positions: {max_pos}, Market Filter: {mkt_filter}.
 
-### 3. 回測結果 (Results)
+ ### 3. 回測結果 (Results)
 * CAGR: {cagr:.2%}
 * Calmar Ratio: {calmar_val:.2f}
 * Max Drawdown: {mdd_val:.2%}
